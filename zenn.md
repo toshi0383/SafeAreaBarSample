@@ -120,6 +120,10 @@ if #available(iOS 26.0, *) {
 }
 ```
 
+筆者が開発に携わっている [abceed](https://www.abceed.com/) のオーディオバー（画面下端にフルブリードで pin した自前バー）はこの方式で、`.ultraThinMaterial` ではなくシステム同等の scroll edge blur を出しています。
+
+![](https://static.zenn.studio/user-upload/010bb0e53049-20260702.png =350x)
+
 そして重要なのが、**この interaction 自体はタッチを奪わない**という点です。コンテナのヒットテストは通常の UIKit のルールに従うので、`hitTest` をオーバーライドした passthrough コンテナにボタンを乗せれば、**「本物の scroll edge effect ＋ 隙間はタッチ透過」が両立**します。SwiftUI の `safeAreaBar` では不可能だった組み合わせです。
 
 ```swift
@@ -133,10 +137,6 @@ final class PassthroughView: UIView {
 ```
 
 ボタン自体も UIKit で組みます。iOS 26 なら `UIButton.Configuration.glass()` / `.prominentGlass()` で glass ボタンが作れます。SwiftUI の自前バーで使いたい場合も、この一式を `UIViewRepresentable` / `UIViewControllerRepresentable` 経由で載せれば同じことができます。
-
-筆者が開発に携わっている [abceed](https://www.abceed.com/) のオーディオバー（画面下端にフルブリードで pin した自前バー）はこの方式で、`.ultraThinMaterial` ではなくシステム同等の scroll edge blur を出しています。
-
-![](https://static.zenn.studio/user-upload/010bb0e53049-20260702.png =350x)
 
 ### ハマりどころ: `_UIHostingView` が bounds 全域でタッチを吸う
 
