@@ -113,6 +113,10 @@ if #available(iOS 26.0, *) {
 
 abceed の `RichAudioBar`（画面下端にフルブリードで pin した自前オーディオバー）はこの方式で、`.ultraThinMaterial` ではなくシステム同等の scroll edge blur を出しています。SwiftUI の自前バーでも `UIViewRepresentable` 経由で同じことができます。
 
+:::message alert
+ただしこれで得られるのは **blur の見た目・範囲のコントロール**だけで、**タッチ透過は解決しません**。効果を出すコンテナ（バー）を置いた範囲＝タッチを奪う範囲なので、全幅の blur にすれば手段①の `safeAreaBar` と同じ全幅デッドゾーンが再発します。「全幅 blur かつ隙間はタッチ透過」は、この方式でも両立できません。
+:::
+
 ---
 
 ## ここで壁: 「標準グラス tabBar」と組み合わせたい
@@ -256,11 +260,20 @@ static var edgeInset: CGFloat {
 - `safeAreaInset` + 自前 Blur: **単独バー**なら Blur もタッチも自由に握れて使いやすい。ただし標準 tabBar とは融合しない。
 - `.tabViewBottomAccessory`: 標準 tabBar の上に乗せる公式手段。ただしカプセル固定・Apple 管理のグラス。
 
-そして今回いちばん重要だった学び:
+### 今回いちばん重要だった学び
 
-> **標準グラス tabBar と、それと融合する自前 Blur は同時に成立しない。** tabBar のグラスはシステム管理の別レイヤーで、自前 Blur を差し込めない。UIKit（`UITabBar` + `UIVisualEffectView`）に落としても、標準 tabBar のシステム素材とシームレスに合成する公開手段は無いので解決しない。
->
-> ただし **自前バー側**には、UIKit の `UIScrollEdgeElementContainerInteraction` で iOS 26 の本物の scroll edge effect を付けられる（＝手段②の自前バーを system 同等の見栄えにできる）。あくまで「自前バー」に対してであって、標準 tabBar との融合ができるわけではない点は変わらない。
+:::message
+**標準グラス tabBar と、それと融合する自前 Blur は同時に成立しない。**
+tabBar のグラスはシステム管理の別レイヤーで、自前 Blur を差し込めません。UIKit（`UITabBar` + `UIVisualEffectView`）でも、標準 tabBar のシステム素材とシームレスに合成する公開手段はありません。
+:::
 
-要件が「標準グラス tabBar」なら自前 Blur との融合は諦め、上に独立ピルをBlurなしで floating させる ── というのが、少なくとも自分が扱ったケースでの落としどころでした。もちろん要件次第なので、手段の性質を押さえたうえで手に馴染む方を選ぶのが良いと思います。
+自前バー側なら、UIKit の `UIScrollEdgeElementContainerInteraction` で iOS 26 の本物の scroll edge effect を出せます。ただしこれは**見た目（blur の範囲）をコントロールできる**という話に留まり、**タッチ透過は解決しません**。効果を出すコンテナ（バー）を置いた範囲がそのままタッチを奪う範囲になるため、全幅の blur にすれば `safeAreaBar` と同じ全幅デッドゾーンが再発します。つまり「標準グラス tabBar との融合」も「全幅 blur ＋ タッチ透過」も、自前 View に落としても実現できない、というのが現時点の認識です。
+
+落としどころは画面の要件で変わります。自分が扱ったケースでは:
+
+- **標準グラス tabBar がある画面**: 自前 Blur との融合は諦め、上に独立ピルを Blur なしで floating させる（`safeAreaInset` 背景なし）
+- **tabBar のない画面**（オーディオバーのような単独バー）: `safeAreaInset` + 自前 Blur。gradient mask した `.ultraThinMaterial` なら `allowsHitTesting(false)` でタッチ透過と両立できる
+- **本物の scroll edge effect がどうしても欲しい**: UIKit の `UIScrollEdgeElementContainerInteraction`。ただし blur 範囲＝タッチを奪う範囲になることを受け入れる
+
+もちろん要件次第なので、手段の性質を押さえたうえで手に馴染む方を選ぶのが良いと思います。
 
