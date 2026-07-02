@@ -38,10 +38,10 @@ private struct SafeAreaBarDemo: View {
   }
 }
 
-// MARK: - B. safeAreaInset + 自前 Blur（RichAudioBar 風の配置）
+// MARK: - B. safeAreaInset + 自前 Blur（オーディオバー風の配置）
 
-/// abceed-ios の RichAudioBar と同じ流儀:
-/// - グラスカプセルのオーディオバー（RichAudioBar 相当）+ 2 ボタンを safeAreaInset に置く
+/// abceed のオーディオバー と同じ流儀:
+/// - グラスカプセルのオーディオバー + 2 ボタンを safeAreaInset に置く
 /// - バーは物理最下端から `edgeInset` だけ浮かせて floating（画面角と同心）
 /// - 背後の自前 blur は `ignoresSafeArea` で物理最下端まで敷く（`allowsHitTesting(false)` で透過）
 private struct SafeAreaInsetBlurDemo: View {
@@ -49,12 +49,12 @@ private struct SafeAreaInsetBlurDemo: View {
     DemoList()
       .safeAreaInset(edge: .bottom, spacing: 0) {
         VStack(spacing: 0) {
-          // RichAudioBar の上に 2 ボタンを同じように重ねる。
+          // オーディオバーの上に 2 ボタンを同じように重ねる。
           BottomActionButtons()
-          RichAudioBar()
+          DemoAudioBar()
         }
         .frame(maxWidth: .infinity)
-        // 物理最下端から edgeInset 分だけ浮かせる（abceed RichAudioBar と同じ）。
+        // 物理最下端から edgeInset 分だけ浮かせる（abceed のオーディオバーと同じ）。
         .padding(.bottom, Screen.edgeInset)
         .background {
           BottomProgressiveBlur()
@@ -116,7 +116,7 @@ private struct StandardTabBarWithPillsDemo: View {
 
 // MARK: - F. UIScrollEdgeElementContainerInteraction（UIKit・本物の scroll edge effect）
 
-/// abceed の NewsContentViewController と同じ構成:
+/// abceed のオーディオバー画面と同じ構成:
 /// - UIScrollView をフルスクリーンに敷く
 /// - bar を全幅で物理最下端 (view.bottomAnchor) に pin
 /// - `UIScrollEdgeElementContainerInteraction` を bar に付け、システム本物の
@@ -403,7 +403,7 @@ private class DemoCardsBarViewController: UIViewController {
     NSLayoutConstraint.activate([
       bar.leadingAnchor.constraint(equalTo: view.leadingAnchor),
       bar.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-      // abceed NewsContentViewController と同じく物理最下端に pin（フルブリード）。
+      // abceed のオーディオバー画面と同じく物理最下端に pin（フルブリード）。
       // interaction の blur は bar の frame 全域に出るため、tabBar があっても
       // bar 自体は最下端まで伸ばし、ボタン位置だけ buttonBottomConstraint で調整する。
       bar.bottomAnchor.constraint(equalTo: view.bottomAnchor),
@@ -454,9 +454,9 @@ private struct BottomActionButtons: View {
   }
 }
 
-/// abceed-ios の RichAudioBar 風のオーディオバー。
+/// abceed のオーディオバー 風のオーディオバー。
 /// seek バー + 3秒戻し + 再生/停止 + 3秒送り + 速度 を、グラスカプセル背景で包む。
-private struct RichAudioBar: View {
+private struct DemoAudioBar: View {
   @State private var progress: Double = 0.35
   @State private var isPlaying = false
 
@@ -549,7 +549,7 @@ private enum Screen {
   }
 
   /// バー（カプセル）を画面角と同心に floating させるための edgeInset。
-  /// abceed-ios RichAudioBar 準拠: 画面角半径から capsule 半径 (= バー高さ / 2) を引く。最小 16pt。
+  /// abceed のオーディオバーと同じ式: 画面角半径から capsule 半径 (= バー高さ / 2) を引く。最小 16pt。
   /// 左右・下端の floating マージンに共通で使う。
   static let barHeight: CGFloat = 56
   static var edgeInset: CGFloat {
