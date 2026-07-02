@@ -306,26 +306,50 @@ private class DemoCardsBarViewController: UIViewController {
   }
 
   private func setupBar() {
-    // bar の中身は SwiftUI（共通の 2 ボタン行）。物理最下端まで bar を伸ばすため、
-    // 下パディングを edgeInset にしてボタンをホームインジケータの上に浮かせる。
-    let hosting = UIHostingController(
-      rootView: BottomActionButtons().padding(.bottom, Screen.edgeInset)
-    )
-    hosting.view.backgroundColor = .clear
-    hosting.safeAreaRegions = []
-    addChild(hosting)
-    view.addSubview(hosting.view)
-    hosting.didMove(toParent: self)
+    // bar は hitTest をオーバーライドした passthrough コンテナ + UIKit glass ボタン。
+    // UIHostingController の view を全幅で置くと _UIHostingView が bounds 全域で
+    // タッチを吸ってしまい、ボタンの隙間が背後に透過しないため UIKit で組む。
+    let bar = PassthroughView()
+    bar.translatesAutoresizingMaskIntoConstraints = false
+    view.addSubview(bar)
 
-    hosting.view.translatesAutoresizingMaskIntoConstraints = false
+    var historyConfig = UIButton.Configuration.glass()
+    historyConfig.title = "学習履歴"
+    let historyButton = UIButton(configuration: historyConfig)
+
+    var createConfig = UIButton.Configuration.prominentGlass()
+    createConfig.title = "シチュエーションを作成"
+    let createButton = UIButton(configuration: createConfig)
+
+    for button in [historyButton, createButton] {
+      button.translatesAutoresizingMaskIntoConstraints = false
+      bar.addSubview(button)
+    }
+
     NSLayoutConstraint.activate([
-      hosting.view.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-      hosting.view.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+      bar.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+      bar.trailingAnchor.constraint(equalTo: view.trailingAnchor),
       // abceed NewsContentViewController と同じく物理最下端に pin（フルブリード）。
-      hosting.view.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+      bar.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+
+      // ボタンは物理最下端から edgeInset 浮かせ、左右も edgeInset で floating。
+      historyButton.leadingAnchor.constraint(equalTo: bar.leadingAnchor, constant: Screen.edgeInset),
+      historyButton.topAnchor.constraint(equalTo: bar.topAnchor, constant: 8),
+      historyButton.bottomAnchor.constraint(equalTo: bar.bottomAnchor, constant: -Screen.edgeInset),
+      createButton.trailingAnchor.constraint(equalTo: bar.trailingAnchor, constant: -Screen.edgeInset),
+      createButton.centerYAnchor.constraint(equalTo: historyButton.centerYAnchor),
     ])
 
-    barView = hosting.view
+    barView = bar
+  }
+
+  /// 自身へのヒットは無視し、subview（ボタン）へのヒットだけ返すコンテナ。
+  /// ボタンの隙間・余白のタッチは背後（scrollView）へ透過する。
+  private final class PassthroughView: UIView {
+    override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
+      let view = super.hitTest(point, with: event)
+      return view === self ? nil : view
+    }
   }
 }
 
