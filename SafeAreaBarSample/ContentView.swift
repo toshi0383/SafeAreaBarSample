@@ -39,7 +39,20 @@ private struct BottomActionButtons: View {
       }
       .buttonStyle(.glassProminent)
     }
-    .padding(.horizontal, 16)
+    // 画面の角丸に沿わせて水平インセットを画面コーナー半径の半分にする。
+    .padding(.horizontal, Screen.displayCornerRadius / 2)
+    .padding(.bottom, 16)
+  }
+}
+
+/// 画面（ディスプレイ）の角丸半径。公開 API が無いため `UIScreen` の
+/// private key を KVC で読む（App Store 提出時はリジェクトのリスクに注意）。
+private enum Screen {
+  static var displayCornerRadius: CGFloat {
+    let screen = UIApplication.shared.connectedScenes
+      .compactMap { ($0 as? UIWindowScene)?.keyWindow?.screen }
+      .first
+    return (screen?.value(forKey: "_displayCornerRadius") as? CGFloat) ?? 0
   }
 }
 
