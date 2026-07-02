@@ -13,7 +13,8 @@ struct ContentView: View {
           NavigationLink("A. safeAreaBar（全幅でタッチを奪う）") { SafeAreaBarDemo() }
           NavigationLink("B. safeAreaInset + 自前Blur（タッチ透過）") { SafeAreaInsetBlurDemo() }
           NavigationLink("D. tabViewBottomAccessory（カプセル固定）") { TabViewAccessoryDemo() }
-          NavigationLink("F. UIScrollEdgeElementContainerInteraction（UIKit・本物のedge effect）") { ScrollEdgeInteractionDemo() }
+          NavigationLink("F. UIKit・本物のedge effect（タッチを奪う）") { ScrollEdgeInteractionDemo() }
+          NavigationLink("G. UIKit・自前Blur（タッチ透過）") { InsetBlurUIKitDemo() }
         }
       }
       .navigationTitle("下端バー比較")
@@ -141,16 +142,11 @@ private struct ScrollEdgeInteractionRepresentable: UIViewControllerRepresentable
   func updateUIViewController(_ uiViewController: ScrollEdgeInteractionViewController, context: Context) {}
 }
 
-private final class ScrollEdgeInteractionViewController: UIViewController {
-  private let scrollView = UIScrollView()
-  private var barView: UIView!
-
+/// F: 基底構成 + `UIScrollEdgeElementContainerInteraction`。
+/// bar の frame 全体がタッチを奪う（safeAreaBar と等価の挙動）。
+private final class ScrollEdgeInteractionViewController: DemoCardsBarViewController {
   override func viewDidLoad() {
     super.viewDidLoad()
-    view.backgroundColor = .systemBackground
-
-    setupScrollContent()
-    setupBar()
 
     // 本物の scroll edge effect。bar の下を通過するスクロールコンテンツに
     // システムの progressive blur がかかる。
@@ -160,6 +156,103 @@ private final class ScrollEdgeInteractionViewController: UIViewController {
       interaction.edge = .bottom
       barView.addInteraction(interaction)
     }
+  }
+}
+
+// MARK: - G. UIKit・自前 Blur（タッチ透過）
+
+/// B（safeAreaInset + 自前 Blur）の UIKit 版。
+/// F と同じ構成だが、システムの interaction の代わりに gradient mask した
+/// `UIVisualEffectView` を bar 背後に敷く。blur view は
+/// `isUserInteractionEnabled = false` なのでタッチを透過し、ボタンだけが反応する。
+private struct InsetBlurUIKitDemo: View {
+  var body: some View {
+    InsetBlurUIKitRepresentable()
+      .ignoresSafeArea()
+      .navigationTitle("G. UIKit 自前Blur")
+      .navigationBarTitleDisplayMode(.inline)
+  }
+}
+
+private struct InsetBlurUIKitRepresentable: UIViewControllerRepresentable {
+  func makeUIViewController(context: Context) -> InsetBlurUIKitViewController {
+    InsetBlurUIKitViewController()
+  }
+
+  func updateUIViewController(_ uiViewController: InsetBlurUIKitViewController, context: Context) {}
+}
+
+private final class InsetBlurUIKitViewController: DemoCardsBarViewController {
+  override func viewDidLoad() {
+    super.viewDidLoad()
+
+    // 自前 blur を bar 背後（物理最下端まで）に敷く。タッチは透過。
+    let blur = BottomProgressiveBlurUIView()
+    blur.translatesAutoresizingMaskIntoConstraints = false
+    view.insertSubview(blur, belowSubview: barView)
+    NSLayoutConstraint.activate([
+      blur.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+      blur.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+      blur.topAnchor.constraint(equalTo: barView.topAnchor),
+      blur.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+    ])
+  }
+}
+
+/// `BottomProgressiveBlur`（SwiftUI 版）の UIKit 実装。
+/// `.systemUltraThinMaterial` の `UIVisualEffectView` を、上→下の gradient で
+/// view-based mask（`UIView.mask`）する。`isUserInteractionEnabled = false` でタッチ透過。
+private final class BottomProgressiveBlurUIView: UIView {
+  private let effectView = UIVisualEffectView(effect: UIBlurEffect(style: .systemUltraThinMaterial))
+  private let gradientMaskView = GradientView()
+
+  override init(frame: CGRect) {
+    super.init(frame: frame)
+    isUserInteractionEnabled = false
+    addSubview(effectView)
+    // UIVisualEffectView は layer.mask ではなく view-based の mask をサポートする。
+    effectView.mask = gradientMaskView
+  }
+
+  @available(*, unavailable)
+  required init?(coder: NSCoder) { fatalError() }
+
+  override func layoutSubviews() {
+    super.layoutSubviews()
+    effectView.frame = bounds
+    gradientMaskView.frame = bounds
+  }
+
+  private final class GradientView: UIView {
+    override class var layerClass: AnyClass { CAGradientLayer.self }
+
+    override init(frame: CGRect) {
+      super.init(frame: frame)
+      let gradient = layer as! CAGradientLayer
+      gradient.colors = [UIColor.clear.cgColor, UIColor.black.cgColor]
+      gradient.startPoint = CGPoint(x: 0.5, y: 0)
+      gradient.endPoint = CGPoint(x: 0.5, y: 1)
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError() }
+  }
+}
+
+// MARK: - F/G 共通の UIKit 基底 VC
+
+/// カードを並べた UIScrollView + 物理最下端に pin した SwiftUI ボタン行 bar。
+/// F（interaction）/ G（自前 blur）はこの上に効果だけを差し替える。
+private class DemoCardsBarViewController: UIViewController {
+  let scrollView = UIScrollView()
+  private(set) var barView: UIView!
+
+  override func viewDidLoad() {
+    super.viewDidLoad()
+    view.backgroundColor = .systemBackground
+
+    setupScrollContent()
+    setupBar()
   }
 
   override func viewDidLayoutSubviews() {
