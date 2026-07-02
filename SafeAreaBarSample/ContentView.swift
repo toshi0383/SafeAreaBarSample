@@ -13,6 +13,7 @@ struct ContentView: View {
           NavigationLink("A. safeAreaBar（全幅でタッチを奪う）") { SafeAreaBarDemo() }
           NavigationLink("B. safeAreaInset + 自前Blur（タッチ透過）") { SafeAreaInsetBlurDemo() }
           NavigationLink("D. tabViewBottomAccessory（カプセル固定）") { TabViewAccessoryDemo() }
+          NavigationLink("F. UIScrollEdgeElementContainerInteraction（UIKit・本物のedge effect）") { ScrollEdgeInteractionDemo() }
         }
       }
       .navigationTitle("下端バー比較")
@@ -111,6 +112,127 @@ private struct StandardTabBarWithPillsDemo: View {
     }
     .navigationTitle("E. 標準tabBar + 独立ピル")
     .navigationBarTitleDisplayMode(.inline)
+  }
+}
+
+// MARK: - F. UIScrollEdgeElementContainerInteraction（UIKit・本物の scroll edge effect）
+
+/// abceed の NewsContentViewController と同じ構成:
+/// - UIScrollView をフルスクリーンに敷く
+/// - bar を全幅で物理最下端 (view.bottomAnchor) に pin
+/// - `UIScrollEdgeElementContainerInteraction` を bar に付け、システム本物の
+///   progressive blur を bar 背後に出す
+/// 注意: blur が出る範囲（= bar の frame）はタッチを奪う。全幅 blur にすると
+/// safeAreaBar と同じ全幅デッドゾーンになる（記事の「発展」節の実証用）。
+private struct ScrollEdgeInteractionDemo: View {
+  var body: some View {
+    ScrollEdgeInteractionRepresentable()
+      .ignoresSafeArea()
+      .navigationTitle("F. UIKit edge effect")
+      .navigationBarTitleDisplayMode(.inline)
+  }
+}
+
+private struct ScrollEdgeInteractionRepresentable: UIViewControllerRepresentable {
+  func makeUIViewController(context: Context) -> ScrollEdgeInteractionViewController {
+    ScrollEdgeInteractionViewController()
+  }
+
+  func updateUIViewController(_ uiViewController: ScrollEdgeInteractionViewController, context: Context) {}
+}
+
+private final class ScrollEdgeInteractionViewController: UIViewController {
+  private let scrollView = UIScrollView()
+  private var barView: UIView!
+
+  override func viewDidLoad() {
+    super.viewDidLoad()
+    view.backgroundColor = .systemBackground
+
+    setupScrollContent()
+    setupBar()
+
+    // 本物の scroll edge effect。bar の下を通過するスクロールコンテンツに
+    // システムの progressive blur がかかる。
+    if #available(iOS 26.0, *) {
+      let interaction = UIScrollEdgeElementContainerInteraction()
+      interaction.scrollView = scrollView
+      interaction.edge = .bottom
+      barView.addInteraction(interaction)
+    }
+  }
+
+  override func viewDidLayoutSubviews() {
+    super.viewDidLayoutSubviews()
+    // bar の高さ分だけ scroll content の下端を予約する（safeAreaInset 相当）。
+    let barHeight = barView.bounds.height - view.safeAreaInsets.bottom
+    if scrollView.contentInset.bottom != barHeight {
+      scrollView.contentInset.bottom = barHeight
+    }
+  }
+
+  private func setupScrollContent() {
+    scrollView.translatesAutoresizingMaskIntoConstraints = false
+    view.addSubview(scrollView)
+
+    let stack = UIStackView()
+    stack.axis = .vertical
+    stack.spacing = 12
+    stack.translatesAutoresizingMaskIntoConstraints = false
+    scrollView.addSubview(stack)
+
+    for i in 0..<40 {
+      let card = UIView()
+      card.backgroundColor = .quaternarySystemFill
+      card.layer.cornerRadius = 16
+      card.translatesAutoresizingMaskIntoConstraints = false
+      let label = UILabel()
+      label.text = "アジェンダの作成 \(i)"
+      label.font = .preferredFont(forTextStyle: .headline)
+      label.translatesAutoresizingMaskIntoConstraints = false
+      card.addSubview(label)
+      NSLayoutConstraint.activate([
+        card.heightAnchor.constraint(equalToConstant: 64),
+        label.leadingAnchor.constraint(equalTo: card.leadingAnchor, constant: 20),
+        label.centerYAnchor.constraint(equalTo: card.centerYAnchor),
+      ])
+      stack.addArrangedSubview(card)
+    }
+
+    NSLayoutConstraint.activate([
+      scrollView.topAnchor.constraint(equalTo: view.topAnchor),
+      scrollView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+      scrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+      scrollView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+      stack.topAnchor.constraint(equalTo: scrollView.contentLayoutGuide.topAnchor, constant: 16),
+      stack.leadingAnchor.constraint(equalTo: scrollView.contentLayoutGuide.leadingAnchor, constant: 16),
+      stack.trailingAnchor.constraint(equalTo: scrollView.contentLayoutGuide.trailingAnchor, constant: -16),
+      stack.bottomAnchor.constraint(equalTo: scrollView.contentLayoutGuide.bottomAnchor, constant: -16),
+      stack.widthAnchor.constraint(equalTo: scrollView.frameLayoutGuide.widthAnchor, constant: -32),
+    ])
+  }
+
+  private func setupBar() {
+    // bar の中身は SwiftUI（共通の 2 ボタン行）。物理最下端まで bar を伸ばすため、
+    // 下パディングを edgeInset にしてボタンをホームインジケータの上に浮かせる。
+    let hosting = UIHostingController(
+      rootView: BottomActionButtons().padding(.bottom, Screen.edgeInset)
+    )
+    hosting.view.backgroundColor = .clear
+    hosting.safeAreaRegions = []
+    addChild(hosting)
+    view.addSubview(hosting.view)
+    hosting.didMove(toParent: self)
+
+    hosting.view.translatesAutoresizingMaskIntoConstraints = false
+    NSLayoutConstraint.activate([
+      hosting.view.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+      hosting.view.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+      // abceed NewsContentViewController と同じく物理最下端に pin（フルブリード）。
+      hosting.view.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+    ])
+
+    barView = hosting.view
   }
 }
 
