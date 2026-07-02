@@ -23,30 +23,45 @@ struct ContentView: View {
 // MARK: - A. safeAreaBar
 
 /// 自動で Liquid Glass 背景 + scroll edge effect。ただしバー全幅でタッチを奪う。
+/// その「タッチを奪う範囲」を赤の半透明で可視化する（この赤い帯の中では背後の
+/// リストをスクロール/タップできない）。
 private struct SafeAreaBarDemo: View {
   var body: some View {
     DemoList()
       .safeAreaBar(edge: .bottom, spacing: 0) {
         BottomActionButtons()
+          .frame(maxWidth: .infinity)
+          .background(Color.red.opacity(0.3))
       }
       .navigationTitle("A. safeAreaBar")
       .navigationBarTitleDisplayMode(.inline)
   }
 }
 
-// MARK: - B. safeAreaInset + 自前 Blur
+// MARK: - B. safeAreaInset + 自前 Blur（RichAudioBar 風の配置）
 
-/// 自前 progressive blur を背景に敷き、`allowsHitTesting(false)` で Blur 帯はタッチ透過。
+/// abceed-ios の RichAudioBar と同じ流儀:
+/// - グラスカプセルのオーディオバー（RichAudioBar 相当）+ 2 ボタンを safeAreaInset に置く
+/// - バーは物理最下端から `edgeInset` だけ浮かせて floating（画面角と同心）
+/// - 背後の自前 blur は `ignoresSafeArea` で物理最下端まで敷く（`allowsHitTesting(false)` で透過）
 private struct SafeAreaInsetBlurDemo: View {
   var body: some View {
     DemoList()
       .safeAreaInset(edge: .bottom, spacing: 0) {
-        BottomActionButtons()
-          .frame(maxWidth: .infinity)
-          .background {
-            BottomProgressiveBlur()
-              .allowsHitTesting(false)
-          }
+        VStack(spacing: 0) {
+          // RichAudioBar の上に 2 ボタンを同じように重ねる。
+          BottomActionButtons()
+          RichAudioBar()
+        }
+        .frame(maxWidth: .infinity)
+        // 物理最下端から edgeInset 分だけ浮かせる（abceed RichAudioBar と同じ）。
+        .padding(.bottom, Screen.edgeInset)
+        .background {
+          BottomProgressiveBlur()
+            .allowsHitTesting(false)
+        }
+        // blur ごと SafeArea を無視して物理最下端まで伸ばす。
+        .ignoresSafeArea(.container, edges: .bottom)
       }
       .navigationTitle("B. inset + 自前Blur")
       .navigationBarTitleDisplayMode(.inline)
@@ -118,9 +133,55 @@ private struct BottomActionButtons: View {
       }
       .buttonStyle(.glassProminent)
     }
-    // 画面の丸角に沿わせて水平インセットを画面コーナー半径の半分にする。
-    .padding(.horizontal, Screen.displayCornerRadius / 2)
+    // 画面角と同心になる edgeInset で左右を floating させる。
+    .padding(.horizontal, Screen.edgeInset)
     .padding(.bottom, 16)
+  }
+}
+
+/// abceed-ios の RichAudioBar 風のオーディオバー。
+/// seek バー + 3秒戻し + 再生/停止 + 3秒送り + 速度 を、グラスカプセル背景で包む。
+private struct RichAudioBar: View {
+  @State private var progress: Double = 0.35
+  @State private var isPlaying = false
+
+  var body: some View {
+    HStack(spacing: 16) {
+      seekTrack
+
+      Button {} label: {
+        Image(systemName: "gobackward.5").font(.system(size: 20))
+      }
+      Button { isPlaying.toggle() } label: {
+        Image(systemName: isPlaying ? "pause.fill" : "play.fill").font(.system(size: 24))
+      }
+      Button {} label: {
+        Image(systemName: "goforward.5").font(.system(size: 20))
+      }
+
+      Text("1.0x").font(.subheadline).bold()
+    }
+    .foregroundStyle(.primary)
+    .buttonStyle(.plain)
+    .padding(.horizontal, 20)
+    .padding(.vertical, 12)
+    .glassEffect(in: .capsule)
+    // 画面角と同心になる edgeInset で左右を floating させる（ボタン行と揃う）。
+    .padding(.horizontal, Screen.edgeInset)
+  }
+
+  private var seekTrack: some View {
+    Capsule()
+      .fill(.quaternary)
+      .frame(height: 4)
+      .overlay(alignment: .leading) {
+        GeometryReader { g in
+          Capsule()
+            .fill(Color.accentColor)
+            .frame(width: g.size.width * progress)
+        }
+      }
+      .frame(maxWidth: .infinity)
   }
 }
 
@@ -170,6 +231,14 @@ private enum Screen {
       .compactMap { ($0 as? UIWindowScene)?.keyWindow?.screen }
       .first
     return (screen?.value(forKey: "_displayCornerRadius") as? CGFloat) ?? 0
+  }
+
+  /// バー（カプセル）を画面角と同心に floating させるための edgeInset。
+  /// abceed-ios RichAudioBar 準拠: 画面角半径から capsule 半径 (= バー高さ / 2) を引く。最小 16pt。
+  /// 左右・下端の floating マージンに共通で使う。
+  static let barHeight: CGFloat = 56
+  static var edgeInset: CGFloat {
+    max(displayCornerRadius - barHeight / 2, 16)
   }
 }
 

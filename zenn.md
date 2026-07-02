@@ -40,6 +40,10 @@ ScrollView {
 
 `safeAreaBar` が敷くグラス背景は **バーの全幅** に広がり、その帯全体がタッチを受け取ります。ボタンが中央に 1 つ乗っているだけでも、**左右の“何もない”ガラス部分までタッチが吸われて**背後のコンテンツに透過しません。
 
+タッチを奪う領域に赤く色をつけてみました。
+![タッチを奪う領域に赤く色をつけてみました。](https://static.zenn.studio/user-upload/bca0c56c4cf3-20260702.png =350x)
+
+
 「小さいボタンだけ浮かせて、それ以外は透過させたい」用途だと、この全幅デッドゾーンが邪魔に感じました。
 
 ---
@@ -48,7 +52,13 @@ ScrollView {
 
 そこで、配置は `safeAreaInset(edge:.bottom)`、背景の Blur は **自前** で描き、Blur に `.allowsHitTesting(false)` を付けて **タッチ透過** させる構成です。
 
-余談ですが、Slack の iOS アプリも下端に浮くボタンの背景をこうした「透過するぼかし帯」で処理していて、帯の余白では背後のリストがそのままスクロール・タップできます。個人的にはこの挙動が自然に感じます。
+余談ですが、Slack の iOS アプリも下端に浮くボタンの背景をこうした「透過するぼかし帯」で処理していて、帯の余白では背後のリストがそのままスクロール・タップできます。個人的にはこの挙動が自然に感じます。狭いですがタブバーの左右もタッチ透過です。
+一方で標準のメールアプリは、このような「ボタンの隙間」はタッチ透過していません。
+個人的にはこれは直感に反するようにも感じるのですが、皆さんはどうでしょうか？
+
+|||
+|---|---|
+|![](https://static.zenn.studio/user-upload/2826f13085a8-20260702.jpg =250x) | ![](https://static.zenn.studio/user-upload/3c6365d10b01-20260702.jpg =250x) |
 
 ### 自前 progressive blur
 
@@ -86,6 +96,23 @@ ScrollView {
 
 **単独の ScrollView に自前バーを付けるだけ**なら、これがいちばん融通が利きます。Blur の見た目もタッチ挙動も自分で握れます。
 
+### 発展: 自前 Blur の代わりに「本物の scroll edge effect」を使う（UIKit）
+
+`.ultraThinMaterial` を mask する方法は“それっぽい”ぼかしですが、iOS 26 の**本物の scroll edge effect**（システムがツールバー等の下端で出すプログレッシブぼかし）を、**自前ビューに対して**付けることもできます。UIKit の `UIScrollEdgeElementContainerInteraction` を使います。
+
+```swift
+// 自前バー（UIView）に付ける。scrollView の下端を通過するコンテンツに
+// システムの progressive blur が自動でかかる。
+if #available(iOS 26.0, *) {
+  let interaction = UIScrollEdgeElementContainerInteraction()
+  interaction.scrollView = tableView
+  interaction.edge = .bottom
+  barView.addInteraction(interaction)
+}
+```
+
+abceed の `RichAudioBar`（画面下端にフルブリードで pin した自前オーディオバー）はこの方式で、`.ultraThinMaterial` ではなくシステム同等の scroll edge blur を出しています。SwiftUI の自前バーでも `UIViewRepresentable` 経由で同じことができます。
+
 ---
 
 ## ここで壁: 「標準グラス tabBar」と組み合わせたい
@@ -120,6 +147,8 @@ TabView(selection: $selectedTab) {
 - 全幅ベタ塗りではなく **端から内側に浮くカプセル** なので、`safeAreaBar` のような全幅デッドゾーンは無い（これは floating accessory の設計思想であって偶然ではない）
 
 ただし **アクセサリは 1 つのグラスカプセルに包まれます**。自前 Blur は使えず、見た目は Apple 管理。「独立した 2 つの浮遊ピルにしたい」「カプセルにしたくない」場合は合いません。
+
+![](https://static.zenn.studio/user-upload/33018da06542-20260702.png =350x)
 
 ---
 
@@ -173,6 +202,7 @@ private struct BottomActionButtons: View {
   }
 }
 ```
+![](https://static.zenn.studio/user-upload/b69cd3287faa-20260702.png =350x)
 
 ### 補足: 水平インセットを画面コーナー半径に沿わせる
 
@@ -194,8 +224,20 @@ enum Screen {
 ```
 
 :::message alert
-`_displayCornerRadius` は **private API** です。実験や社内配布なら問題ありませんが、App Store 提出ではリジェクトのリスクがあります。キー文字列の難読化や、端末別に定数化するなどの回避策を検討してください。
+`_displayCornerRadius` は **private API** です。実験や社内配布なら問題ありませんが、App Store 提出ではリジェクトのリスクがあります。複数のアプリで審査通過実績があるので問題ない認識ですが、あくまで自己責任でご利用ください。
 :::
+
+なお「コーナー半径の半分」は簡便な近似で、より正確に**画面角と同心**にするなら、コーナー半径から**カプセル自身の半径（＝バー高さ / 2）**を引いた値を floating マージンにします（最小 16pt でクランプ）。abceed の `RichAudioBar` もこの式です。
+
+```swift
+static var edgeInset: CGFloat {
+  max(displayCornerRadius - barHeight / 2, 16)
+}
+```
+
+|before|after|
+|---|---|
+| ![](https://static.zenn.studio/user-upload/629778672b62-20260702.png =250x) | ![](https://static.zenn.studio/user-upload/b69cd3287faa-20260702.png =250x) |
 
 - tabBar は TabView 標準のグラスのまま（別レイヤー）
 - ボタンは独立した glass ピル。`HStack` に背景が無いので、**ピルの当たり判定だけ**がインタラクティブで、隙間・余白・上の領域は背後にタッチ透過
@@ -208,7 +250,7 @@ enum Screen {
 | 欲しいもの | 取れる手段 | 代償 |
 |---|---|---|
 | **標準グラス tabBar を使う** | ① 独立 glass ピルを上に floating（`safeAreaInset` 背景なし）<br>② `.tabViewBottomAccessory`（カプセル・Apple 管理のグラス） | **自前 Blur で tabBar と融合はできない** |
-| **自前 Blur で一枚帯に融合したい** | 自前タブバー + 一枚 progressive blur | **標準グラス tabBar を捨てる** |
+| **自前 Blur で一枚帯に融合したい** | 自前タブバー + progressive blur（`.ultraThinMaterial`、または UIKit の `UIScrollEdgeElementContainerInteraction` で本物の scroll edge effect） | **標準グラス tabBar を捨てる** |
 
 - `safeAreaBar`: 手軽だが全幅でタッチを奪う。単純なツールバー向け。
 - `safeAreaInset` + 自前 Blur: **単独バー**なら Blur もタッチも自由に握れて使いやすい。ただし標準 tabBar とは融合しない。
@@ -216,6 +258,9 @@ enum Screen {
 
 そして今回いちばん重要だった学び:
 
-> **標準グラス tabBar と、それと融合する自前 Blur は同時に成立しない。** tabBar のグラスはシステム管理の別レイヤーで、自前 Blur を差し込めない。UIKit（`UITabBar` + `UIVisualEffectView`）に落としても、システム素材とシームレスに合成する公開手段は無いので解決しない。
+> **標準グラス tabBar と、それと融合する自前 Blur は同時に成立しない。** tabBar のグラスはシステム管理の別レイヤーで、自前 Blur を差し込めない。UIKit（`UITabBar` + `UIVisualEffectView`）に落としても、標準 tabBar のシステム素材とシームレスに合成する公開手段は無いので解決しない。
+>
+> ただし **自前バー側**には、UIKit の `UIScrollEdgeElementContainerInteraction` で iOS 26 の本物の scroll edge effect を付けられる（＝手段②の自前バーを system 同等の見栄えにできる）。あくまで「自前バー」に対してであって、標準 tabBar との融合ができるわけではない点は変わらない。
 
-要件が「標準グラス tabBar」なら自前 Blur との融合は諦め、上に独立ピルを floating させる ── というのが、少なくとも自分が扱ったケースでの落としどころでした。もちろん要件次第なので、手段の性質を押さえたうえで手に馴染む方を選ぶのが良いと思います。
+要件が「標準グラス tabBar」なら自前 Blur との融合は諦め、上に独立ピルをBlurなしで floating させる ── というのが、少なくとも自分が扱ったケースでの落としどころでした。もちろん要件次第なので、手段の性質を押さえたうえで手に馴染む方を選ぶのが良いと思います。
+
