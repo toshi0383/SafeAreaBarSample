@@ -279,11 +279,12 @@ private struct TabBarInteractionRepresentable: UIViewControllerRepresentable {
   func updateUIViewController(_ uiViewController: UITabBarController, context: Context) {}
 }
 
-/// H のタブ内コンテンツ。bar は tabBar の直上（safe area 下端）に pin する。
+/// H のタブ内コンテンツ。bar 自体は物理最下端まで伸ばし（blur を tabBar 背後まで
+/// 連続させるため）、ボタンだけ tabBar の直上（safe area 下端）に浮かせる。
 private final class TabBarContentViewController: DemoCardsBarViewController {
-  override var barBottomAnchor: NSLayoutYAxisAnchor { view.safeAreaLayoutGuide.bottomAnchor }
-  override var buttonBottomInset: CGFloat { 8 }
-  override var bottomContentInset: CGFloat { barView.bounds.height }
+  override func buttonBottomConstraint(for button: UIView, bar: UIView) -> NSLayoutConstraint {
+    button.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -8)
+  }
 
   override func viewDidLoad() {
     super.viewDidLoad()
@@ -310,11 +311,11 @@ private class DemoCardsBarViewController: UIViewController {
   let scrollView = UIScrollView()
   private(set) var barView: UIView!
 
-  /// bar の下端を pin する先。デフォルトは物理最下端。tabBar の上に置く場合はオーバーライド。
-  var barBottomAnchor: NSLayoutYAxisAnchor { view.bottomAnchor }
-
-  /// ボタンを bar 下端から浮かせる量。デフォルトは物理最下端配置用の edgeInset。
-  var buttonBottomInset: CGFloat { Screen.edgeInset }
+  /// ボタンの下端制約。デフォルトは bar 下端（= 物理最下端）から edgeInset 浮かせる。
+  /// tabBar の上に置く場合など、bar とは別の基準にしたいときはオーバーライド。
+  func buttonBottomConstraint(for button: UIView, bar: UIView) -> NSLayoutConstraint {
+    button.bottomAnchor.constraint(equalTo: bar.bottomAnchor, constant: -Screen.edgeInset)
+  }
 
   /// scroll content の下端に予約する量（safeAreaInset 相当）。
   var bottomContentInset: CGFloat { max(0, barView.bounds.height - view.safeAreaInsets.bottom) }
@@ -400,13 +401,15 @@ private class DemoCardsBarViewController: UIViewController {
     NSLayoutConstraint.activate([
       bar.leadingAnchor.constraint(equalTo: view.leadingAnchor),
       bar.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-      // デフォルトは abceed NewsContentViewController と同じく物理最下端に pin（フルブリード）。
-      bar.bottomAnchor.constraint(equalTo: barBottomAnchor),
+      // abceed NewsContentViewController と同じく物理最下端に pin（フルブリード）。
+      // interaction の blur は bar の frame 全域に出るため、tabBar があっても
+      // bar 自体は最下端まで伸ばし、ボタン位置だけ buttonBottomConstraint で調整する。
+      bar.bottomAnchor.constraint(equalTo: view.bottomAnchor),
 
-      // ボタンは bar 下端から buttonBottomInset 浮かせ、左右は edgeInset で floating。
+      // ボタンは左右 edgeInset で floating。下端はオーバーライド可能な制約で決める。
       historyButton.leadingAnchor.constraint(equalTo: bar.leadingAnchor, constant: Screen.edgeInset),
       historyButton.topAnchor.constraint(equalTo: bar.topAnchor, constant: 8),
-      historyButton.bottomAnchor.constraint(equalTo: bar.bottomAnchor, constant: -buttonBottomInset),
+      buttonBottomConstraint(for: historyButton, bar: bar),
       createButton.trailingAnchor.constraint(equalTo: bar.trailingAnchor, constant: -Screen.edgeInset),
       createButton.centerYAnchor.constraint(equalTo: historyButton.centerYAnchor),
     ])
