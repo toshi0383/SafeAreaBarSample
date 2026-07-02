@@ -13,7 +13,7 @@ struct ContentView: View {
           NavigationLink("A. safeAreaBar（全幅でタッチを奪う）") { SafeAreaBarDemo() }
           NavigationLink("B. safeAreaInset + 自前Blur（タッチ透過）") { SafeAreaInsetBlurDemo() }
           NavigationLink("D. tabViewBottomAccessory（カプセル固定）") { TabViewAccessoryDemo() }
-          NavigationLink("F. UIKit・本物のedge effect（タッチを奪う）") { ScrollEdgeInteractionDemo() }
+          NavigationLink("F. UIKit・本物のedge effect（タッチ透過）") { ScrollEdgeInteractionDemo() }
           NavigationLink("G. UIKit・自前Blur（タッチ透過）") { InsetBlurUIKitDemo() }
         }
       }
@@ -123,8 +123,8 @@ private struct StandardTabBarWithPillsDemo: View {
 /// - bar を全幅で物理最下端 (view.bottomAnchor) に pin
 /// - `UIScrollEdgeElementContainerInteraction` を bar に付け、システム本物の
 ///   progressive blur を bar 背後に出す
-/// 注意: blur が出る範囲（= bar の frame）はタッチを奪う。全幅 blur にすると
-/// safeAreaBar と同じ全幅デッドゾーンになる（記事の「発展」節の実証用）。
+/// interaction 自体はタッチを奪わない。bar を PassthroughView にすることで
+/// 「本物の scroll edge effect + タッチ透過」が両立する（safeAreaBar では不可能）。
 private struct ScrollEdgeInteractionDemo: View {
   var body: some View {
     ScrollEdgeInteractionRepresentable()
@@ -143,7 +143,7 @@ private struct ScrollEdgeInteractionRepresentable: UIViewControllerRepresentable
 }
 
 /// F: 基底構成 + `UIScrollEdgeElementContainerInteraction`。
-/// bar の frame 全体がタッチを奪う（safeAreaBar と等価の挙動）。
+/// bar が PassthroughView なので、ボタン以外のタッチは背後の scrollView へ透過する。
 private final class ScrollEdgeInteractionViewController: DemoCardsBarViewController {
   override func viewDidLoad() {
     super.viewDidLoad()

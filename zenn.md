@@ -11,7 +11,7 @@ published: false
 - ScrollView / TabView の下端に「浮くボタン」を置く iOS 26 の 3 つの手段 + 実務的な着地パターンと、それぞれの向き・不向き
 - `safeAreaBar` の Liquid Glass 背景が **バー全幅でタッチを奪う** 問題
 - `safeAreaInset` + 自前 Blur で **タッチを透過** させる方法
-- UIKit の `UIScrollEdgeElementContainerInteraction` で自前バーに**本物の scroll edge effect** を付ける方法と、その限界
+- UIKit の `UIScrollEdgeElementContainerInteraction` で自前バーに**本物の scroll edge effect** を付け、**タッチ透過とも両立**させる方法
 - そして最終的にぶつかった結論: **標準グラス tabBar と「融合する自前 Blur」は同時に成立しない**
 
 「学習履歴」「シチュエーションを作成」のようなボタンを、リストの下端・タブバーの上に浮かせたい ── よくある要件です。iOS 26 の Liquid Glass 環境で、実機で試しながら手段を比較していったら、思ったより奥が深かったので整理します。
@@ -113,8 +113,20 @@ if #available(iOS 26.0, *) {
 
 筆者が開発に携わっている [abceed](https://www.abceed.com/) のオーディオバー（画面下端にフルブリードで pin した自前バー）はこの方式で、`.ultraThinMaterial` ではなくシステム同等の scroll edge blur を出しています。SwiftUI の自前バーでも `UIViewRepresentable` 経由で同じことができます。
 
+しかもこの interaction 自体は**タッチを奪いません**。コンテナのヒットテストは通常の UIKit のルールに従うので、`hitTest` をオーバーライドした passthrough コンテナにボタンを乗せれば、**「本物の scroll edge effect ＋ 隙間はタッチ透過」が両立**します。SwiftUI の `safeAreaBar` では不可能だった組み合わせです。
+
+```swift
+/// 自身へのヒットは無視し、subview（ボタン）へのヒットだけ返すコンテナ。
+final class PassthroughView: UIView {
+  override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
+    let view = super.hitTest(point, with: event)
+    return view === self ? nil : view
+  }
+}
+```
+
 :::message alert
-ただしこれで得られるのは **blur の見た目・範囲のコントロール**だけで、**タッチ透過は解決しません**。効果を出すコンテナ（バー）を置いた範囲＝タッチを奪う範囲なので、全幅の blur にすれば手段①の `safeAreaBar` と同じ全幅デッドゾーンが再発します。「全幅 blur かつ隙間はタッチ透過」は、この方式でも両立できません。
+ハマりどころ: bar の中身を `UIHostingController` でホストすると、`_UIHostingView` が SwiftUI の内容に関係なく **bounds 全域でヒットテストに応答する**ため、ボタンの隙間までタッチが吸われます。検証時、当初これを interaction のせいだと誤認していました。タッチ透過が必要な bar は、passthrough コンテナ + UIKit のボタン（iOS 26 なら `UIButton.Configuration.glass()` / `.prominentGlass()`）で組むのが確実です。
 :::
 
 ---
@@ -268,13 +280,13 @@ static var edgeInset: CGFloat {
 tabBar のグラスはシステム管理の別レイヤーで、自前 Blur を差し込めません。UIKit（`UITabBar` + `UIVisualEffectView`）でも、標準 tabBar のシステム素材とシームレスに合成する公開手段はありません。
 :::
 
-自前バー側なら、UIKit の `UIScrollEdgeElementContainerInteraction` で iOS 26 の本物の scroll edge effect を出せます。ただしこれは**見た目（blur の範囲）をコントロールできる**という話に留まり、**タッチ透過は解決しません**。効果を出すコンテナ（バー）を置いた範囲がそのままタッチを奪う範囲になるため、全幅の blur にすれば `safeAreaBar` と同じ全幅デッドゾーンが再発します。つまり「標準グラス tabBar との融合」も「全幅 blur ＋ タッチ透過」も、自前 View に落としても実現できない、というのが現時点の認識です。
+一方で、自前バー側には UIKit の `UIScrollEdgeElementContainerInteraction` で iOS 26 の本物の scroll edge effect を出せます。この interaction はタッチを奪わないので、passthrough コンテナと組み合わせれば**「本物の scroll edge effect ＋ タッチ透過」を両立**できます。`safeAreaBar` の全幅デッドゾーンに悩まされる場合の、UIKit での回避策になります。実現できないのは「標準グラス tabBar との融合」だけ、というのが最終的な認識です。
 
 落としどころは画面の要件で変わります。自分が扱ったケースでは:
 
 - **標準グラス tabBar がある画面**: 自前 Blur との融合は諦め、上に独立ピルを Blur なしで floating させる（`safeAreaInset` 背景なし）
 - **tabBar のない画面**（オーディオバーのような単独バー）: `safeAreaInset` + 自前 Blur。gradient mask した `.ultraThinMaterial` なら `allowsHitTesting(false)` でタッチ透過と両立できる
-- **本物の scroll edge effect がどうしても欲しい**: UIKit の `UIScrollEdgeElementContainerInteraction`。ただし blur 範囲＝タッチを奪う範囲になることを受け入れる
+- **本物の scroll edge effect が欲しい**: UIKit の `UIScrollEdgeElementContainerInteraction` + passthrough コンテナ。タッチ透過とも両立できる
 
 もちろん要件次第なので、手段の性質を押さえたうえで手に馴染む方を選ぶのが良いと思います。
 
