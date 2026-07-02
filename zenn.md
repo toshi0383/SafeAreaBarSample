@@ -23,6 +23,9 @@ published: false
 
 :::message
 検証環境: Xcode 26 / iOS 26.5 Simulator（iPhone 12）。`safeAreaBar` / `.buttonStyle(.glass)` / `.tabViewBottomAccessory` / `UIScrollEdgeElementContainerInteraction` は iOS 26 以降の API です。
+
+検証に使ったサンプルコードは GitHub で公開しています。各パターンを目次から選んで実機比較できるギャラリーアプリになっています。
+https://github.com/toshi0383/SafeAreaBarSample
 :::
 
 ---
