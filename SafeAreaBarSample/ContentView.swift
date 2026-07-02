@@ -8,14 +8,14 @@ struct ContentView: View {
       List {
         Section("採用パターン") {
           NavigationLink("E. 標準tabBar + 独立glassピル") { StandardTabBarWithPillsDemo() }
+          NavigationLink("F. UIKit・本物のedge effect（タッチ透過）") { ScrollEdgeInteractionDemo() }
+          NavigationLink("H. UIKit・標準tabBar + edge effect（共存・blur上端はtabBarまで）") { TabBarInteractionDemo() }
         }
         Section("比較・ボツパターン") {
           NavigationLink("A. safeAreaBar（全幅でタッチを奪う）") { SafeAreaBarDemo() }
           NavigationLink("B. safeAreaInset + 自前Blur（タッチ透過）") { SafeAreaInsetBlurDemo() }
           NavigationLink("D. tabViewBottomAccessory（カプセル固定）") { TabViewAccessoryDemo() }
-          NavigationLink("F. UIKit・本物のedge effect（タッチ透過）") { ScrollEdgeInteractionDemo() }
           NavigationLink("G. UIKit・自前Blur（タッチ透過）") { InsetBlurUIKitDemo() }
-          NavigationLink("H. UIKit・標準tabBar + edge effect（融合検証）") { TabBarInteractionDemo() }
         }
       }
       .navigationTitle("下端バー比較")
