@@ -124,6 +124,8 @@ if #available(iOS 26.0, *) {
 
 ![](https://static.zenn.studio/user-upload/010bb0e53049-20260702.png =350x)
 
+なお、abceed が採用しているのは blur の方式だけで、このあと説明する**タッチ透過の修正はまだリリースしていません**（執筆時点では、バーの余白のタッチは背後に透過しません）。実アプリで確認される方はご注意ください。
+
 そして重要なのが、**この interaction 自体はタッチを奪わない**という点です。コンテナのヒットテストは通常の UIKit のルールに従うので、`hitTest` をオーバーライドした passthrough コンテナにボタンを乗せれば、**「本物の scroll edge effect ＋ 隙間はタッチ透過」が両立**します。SwiftUI の `safeAreaBar` では不可能だった組み合わせです。
 
 ```swift
