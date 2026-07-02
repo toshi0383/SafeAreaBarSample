@@ -15,6 +15,7 @@ struct ContentView: View {
           NavigationLink("D. tabViewBottomAccessory（カプセル固定）") { TabViewAccessoryDemo() }
           NavigationLink("F. UIKit・本物のedge effect（タッチ透過）") { ScrollEdgeInteractionDemo() }
           NavigationLink("G. UIKit・自前Blur（タッチ透過）") { InsetBlurUIKitDemo() }
+          NavigationLink("H. UIKit・標準tabBar + edge effect（融合検証）") { TabBarInteractionDemo() }
         }
       }
       .navigationTitle("下端バー比較")
@@ -239,6 +240,68 @@ private final class BottomProgressiveBlurUIView: UIView {
   }
 }
 
+// MARK: - H. UIKit・標準 tabBar + edge effect（融合検証）
+
+/// UIKit なら標準グラス tabBar と scroll edge effect を共存/融合できるかの検証。
+/// `UITabBarController`（標準 Liquid Glass tabBar）の 1 タブ目に、
+/// tabBar の直上に pin した passthrough bar + `UIScrollEdgeElementContainerInteraction`
+/// を置き、blur が tabBar のグラスと連続して見えるかを確認する。
+private struct TabBarInteractionDemo: View {
+  var body: some View {
+    TabBarInteractionRepresentable()
+      .ignoresSafeArea()
+      .navigationTitle("H. UIKit tabBar 融合")
+      .navigationBarTitleDisplayMode(.inline)
+  }
+}
+
+private struct TabBarInteractionRepresentable: UIViewControllerRepresentable {
+  func makeUIViewController(context: Context) -> UITabBarController {
+    let tabBarController = UITabBarController()
+
+    let home = TabBarContentViewController()
+    home.tabBarItem = UITabBarItem(title: "ホーム", image: UIImage(systemName: "house.fill"), tag: 0)
+
+    let items: [(String, String)] = [
+      ("映画・ドラマ", "film"), ("教材", "book"), ("ニュース", "newspaper"), ("ライブラリ", "books.vertical"),
+    ]
+    let others = items.enumerated().map { index, item in
+      let vc = UIViewController()
+      vc.view.backgroundColor = .systemBackground
+      vc.tabBarItem = UITabBarItem(title: item.0, image: UIImage(systemName: item.1), tag: index + 1)
+      return vc
+    }
+
+    tabBarController.viewControllers = [home] + others
+    return tabBarController
+  }
+
+  func updateUIViewController(_ uiViewController: UITabBarController, context: Context) {}
+}
+
+/// H のタブ内コンテンツ。bar は tabBar の直上（safe area 下端）に pin する。
+private final class TabBarContentViewController: DemoCardsBarViewController {
+  override var barBottomAnchor: NSLayoutYAxisAnchor { view.safeAreaLayoutGuide.bottomAnchor }
+  override var buttonBottomInset: CGFloat { 8 }
+  override var bottomContentInset: CGFloat { barView.bounds.height }
+
+  override func viewDidLoad() {
+    super.viewDidLoad()
+
+    // 標準 tabBar 自身の scroll edge effect のために content scroll view を通知する。
+    setContentScrollView(scrollView, for: .bottom)
+
+    // 自前 bar 側にも本物の scroll edge effect を付け、tabBar のグラスと
+    // 連続して見えるか（融合するか）を検証する。
+    if #available(iOS 26.0, *) {
+      let interaction = UIScrollEdgeElementContainerInteraction()
+      interaction.scrollView = scrollView
+      interaction.edge = .bottom
+      barView.addInteraction(interaction)
+    }
+  }
+}
+
 // MARK: - F/G 共通の UIKit 基底 VC
 
 /// カードを並べた UIScrollView + 物理最下端に pin した SwiftUI ボタン行 bar。
@@ -246,6 +309,15 @@ private final class BottomProgressiveBlurUIView: UIView {
 private class DemoCardsBarViewController: UIViewController {
   let scrollView = UIScrollView()
   private(set) var barView: UIView!
+
+  /// bar の下端を pin する先。デフォルトは物理最下端。tabBar の上に置く場合はオーバーライド。
+  var barBottomAnchor: NSLayoutYAxisAnchor { view.bottomAnchor }
+
+  /// ボタンを bar 下端から浮かせる量。デフォルトは物理最下端配置用の edgeInset。
+  var buttonBottomInset: CGFloat { Screen.edgeInset }
+
+  /// scroll content の下端に予約する量（safeAreaInset 相当）。
+  var bottomContentInset: CGFloat { max(0, barView.bounds.height - view.safeAreaInsets.bottom) }
 
   override func viewDidLoad() {
     super.viewDidLoad()
@@ -257,10 +329,9 @@ private class DemoCardsBarViewController: UIViewController {
 
   override func viewDidLayoutSubviews() {
     super.viewDidLayoutSubviews()
-    // bar の高さ分だけ scroll content の下端を予約する（safeAreaInset 相当）。
-    let barHeight = barView.bounds.height - view.safeAreaInsets.bottom
-    if scrollView.contentInset.bottom != barHeight {
-      scrollView.contentInset.bottom = barHeight
+    let inset = bottomContentInset
+    if scrollView.contentInset.bottom != inset {
+      scrollView.contentInset.bottom = inset
     }
   }
 
@@ -329,13 +400,13 @@ private class DemoCardsBarViewController: UIViewController {
     NSLayoutConstraint.activate([
       bar.leadingAnchor.constraint(equalTo: view.leadingAnchor),
       bar.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-      // abceed NewsContentViewController と同じく物理最下端に pin（フルブリード）。
-      bar.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+      // デフォルトは abceed NewsContentViewController と同じく物理最下端に pin（フルブリード）。
+      bar.bottomAnchor.constraint(equalTo: barBottomAnchor),
 
-      // ボタンは物理最下端から edgeInset 浮かせ、左右も edgeInset で floating。
+      // ボタンは bar 下端から buttonBottomInset 浮かせ、左右は edgeInset で floating。
       historyButton.leadingAnchor.constraint(equalTo: bar.leadingAnchor, constant: Screen.edgeInset),
       historyButton.topAnchor.constraint(equalTo: bar.topAnchor, constant: 8),
-      historyButton.bottomAnchor.constraint(equalTo: bar.bottomAnchor, constant: -Screen.edgeInset),
+      historyButton.bottomAnchor.constraint(equalTo: bar.bottomAnchor, constant: -buttonBottomInset),
       createButton.trailingAnchor.constraint(equalTo: bar.trailingAnchor, constant: -Screen.edgeInset),
       createButton.centerYAnchor.constraint(equalTo: historyButton.centerYAnchor),
     ])
