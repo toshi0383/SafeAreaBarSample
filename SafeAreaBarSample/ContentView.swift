@@ -25,16 +25,13 @@ struct ContentView: View {
 
 // MARK: - A. safeAreaBar
 
-/// 自動で Liquid Glass 背景 + scroll edge effect。ただしバー全幅でタッチを奪う。
-/// その「タッチを奪う範囲」を赤の半透明で可視化する（この赤い帯の中では背後の
-/// リストをスクロール/タップできない）。
+/// 自動で Liquid Glass 背景 + scroll edge effect。ただしバー全幅でタッチを奪う
+/// （ボタンの隙間・左右余白でも背後のリストをスクロール/タップできない）。
 private struct SafeAreaBarDemo: View {
   var body: some View {
     DemoList()
       .safeAreaBar(edge: .bottom, spacing: 0) {
         BottomActionButtons()
-          .frame(maxWidth: .infinity)
-          .background(Color.red.opacity(0.3))
       }
       .navigationTitle("A. safeAreaBar")
       .navigationBarTitleDisplayMode(.inline)
