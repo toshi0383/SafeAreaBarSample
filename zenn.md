@@ -167,10 +167,35 @@ private struct BottomActionButtons: View {
       }
       .buttonStyle(.glassProminent)
     }
-    .padding(.horizontal, 16)
+    // 画面の丸角に沿わせて、水平インセットを「画面コーナー半径の半分」にする。
+    .padding(.horizontal, Screen.displayCornerRadius / 2)
+    .padding(.bottom, 16)
   }
 }
 ```
+
+### 補足: 水平インセットを画面コーナー半径に沿わせる
+
+ピルの左右インセットを固定 16pt にすると、画面の丸角に対して間延びしたり詰まって見えることがあります。**画面（ディスプレイ）のコーナー半径の半分**をインセットにすると、丸角と同心のカーブに沿って収まりが良くなります。
+
+コーナー半径には公開 API が無いため、`UIScreen` の private key を KVC で読みます。
+
+```swift
+/// 画面（ディスプレイ）の角丸半径。
+/// 公開 API が無いため private key を KVC で読む。
+enum Screen {
+  static var displayCornerRadius: CGFloat {
+    let screen = UIApplication.shared.connectedScenes
+      .compactMap { ($0 as? UIWindowScene)?.keyWindow?.screen }
+      .first
+    return (screen?.value(forKey: "_displayCornerRadius") as? CGFloat) ?? 0
+  }
+}
+```
+
+:::message alert
+`_displayCornerRadius` は **private API** です。実験や社内配布なら問題ありませんが、App Store 提出ではリジェクトのリスクがあります。キー文字列の難読化や、端末別に定数化するなどの回避策を検討してください。
+:::
 
 - tabBar は TabView 標準のグラスのまま（別レイヤー）
 - ボタンは独立した glass ピル。`HStack` に背景が無いので、**ピルの当たり判定だけ**がインタラクティブで、隙間・余白・上の領域は背後にタッチ透過
