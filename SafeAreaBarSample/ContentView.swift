@@ -289,8 +289,13 @@ private final class TabBarContentViewController: DemoCardsBarViewController {
     // 標準 tabBar 自身の scroll edge effect のために content scroll view を通知する。
     setContentScrollView(scrollView, for: .bottom)
 
-    // 自前 bar 側にも本物の scroll edge effect を付け、tabBar のグラスと
-    // 連続して見えるか（融合するか）を検証する。
+    // 自前 bar 側にも本物の scroll edge effect を付ける。
+    //
+    // 既知の制限: UITabBarController 配下では bottom edge effect の描画範囲を
+    // tabBar のクロムが支配するらしく、blur の上端は tabBar にクランプされ、
+    // この interaction で bar 上端（ボタン背後）まで拡張することはできない
+    // （setContentScrollView の有無でレンダリング結果は不変 = screenHash 一致を確認済み）。
+    // tabBar のない画面（パターン F）では bar の frame 全域に効果が出る。
     if #available(iOS 26.0, *) {
       let interaction = UIScrollEdgeElementContainerInteraction()
       interaction.scrollView = scrollView
