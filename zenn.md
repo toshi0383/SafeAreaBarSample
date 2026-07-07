@@ -322,3 +322,4 @@ static var edgeInset: CGFloat {
 
 落としどころは画面の要件で変わります。自分が扱ったケースでは、tabBar のある画面は独立ピルを blur なしで floating、tabBar のない単独バーは UIKit の interaction + passthrough、という使い分けに落ち着きました。手段の性質を押さえたうえで、手に馴染む方を選ぶのが良いと思います。
 
+
