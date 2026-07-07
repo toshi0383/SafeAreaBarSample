@@ -254,30 +254,58 @@ TabView(selection: $selectedTab) {
 
 現実解A の話に戻ると、ピルの左右インセットを固定 16pt にすると、画面の丸角に対して間延びしたり詰まって見えることがあります。**画面（ディスプレイ）のコーナー半径**を基準にインセットを決めると、丸角のカーブに馴染んで収まりが良くなります。
 
-コーナー半径には公開 API が無いため、`UIScreen` の private key を KVC で読みます。
+### 公開 API でデバイス角丸を取得する（iOS 26+）
+
+デバイスのコーナー半径は、iOS 26 の公開 API `UIView.effectiveRadius(corner:)` で取得できます。ポイントは **`containerConcentric` の `cornerConfiguration` を設定した「画面全体に貼った view」で読む**こと。素の UIView では 0 が返ります。
 
 ```swift
-/// 画面（ディスプレイ）の角丸半径。
-/// 公開 API が無いため private key を KVC で読む。
-enum Screen {
-  static var displayCornerRadius: CGFloat {
-    let screen = UIApplication.shared.connectedScenes
-      .compactMap { ($0 as? UIWindowScene)?.keyWindow?.screen }
-      .first
-    return (screen?.value(forKey: "_displayCornerRadius") as? CGFloat) ?? 0
+/// 公開 API だけでデバイス角丸を計測する reader（ルート画面の背景に敷く）。
+struct DisplayCornerRadiusReader: UIViewRepresentable {
+  func makeUIView(context: Context) -> ReaderView { ReaderView() }
+  func updateUIView(_ uiView: ReaderView, context: Context) {}
+
+  final class ReaderView: UIView {
+    override init(frame: CGRect) {
+      super.init(frame: frame)
+      isUserInteractionEnabled = false
+      cornerConfiguration = .corners(radius: .containerConcentric())  // ← これが必須
+    }
+
+    required init?(coder: NSCoder) { fatalError() }
+
+    override func layoutSubviews() {
+      super.layoutSubviews()
+      Screen.displayCornerRadius = effectiveRadius(corner: .bottomLeft)
+    }
   }
 }
 ```
 
+ルート画面の背景に敷いて、起動時に一度計測します。
+
+```swift
+NavigationStack { /* ... */ }
+  .background { DisplayCornerRadiusReader().ignoresSafeArea() }
+```
+
+手元の実測（iPhone 12 / iOS 26.5 Simulator）では、この方法の返り値は後述の private API `_displayCornerRadius` と完全に一致（47.33）しました。この方法は X で [@vistar941](https://x.com/vistar941) さんに教えていただきました。ありがとうございます！
+
+### インセットの計算式
+
 簡便には「コーナー半径の半分」（`displayCornerRadius / 2`）を左右インセットに使うだけでも馴染みます。より正確に**画面角と同心**にするなら、コーナー半径から**カプセル自身の半径（＝バー高さ / 2）**を引いた値を floating マージンにします（最小 16pt でクランプ）。abceed のオーディオバーもこの式です。
 
 ```swift
-/// バー（カプセル）の高さ。
-static let barHeight: CGFloat = 56
+enum Screen {
+  /// DisplayCornerRadiusReader が起動時に計測して格納する。
+  static var displayCornerRadius: CGFloat = 0
 
-/// 画面角と同心になる floating マージン。
-static var edgeInset: CGFloat {
-  max(displayCornerRadius - barHeight / 2, 16)
+  /// バー（カプセル）の高さ。
+  static let barHeight: CGFloat = 56
+
+  /// 画面角と同心になる floating マージン。
+  static var edgeInset: CGFloat {
+    max(displayCornerRadius - barHeight / 2, 16)
+  }
 }
 ```
 
@@ -285,8 +313,19 @@ static var edgeInset: CGFloat {
 |---|---|
 | ![](https://static.zenn.studio/user-upload/629778672b62-20260702.png =250x) | ![](https://static.zenn.studio/user-upload/b69cd3287faa-20260702.png =250x) |
 
+### 参考: iOS 18 以前もサポートする場合（private API）
+
+iOS 18 以前では `effectiveRadius(corner:)` が使えないため、`UIScreen` の private key を KVC で読む方法が知られています。
+
+```swift
+let screen = UIApplication.shared.connectedScenes
+  .compactMap { ($0 as? UIWindowScene)?.keyWindow?.screen }
+  .first
+let radius = (screen?.value(forKey: "_displayCornerRadius") as? CGFloat) ?? 0
+```
+
 :::message alert
-`_displayCornerRadius` は **private API** です。実験や社内配布なら問題ありませんが、App Store 提出ではリジェクトのリスクがあります。複数のアプリで審査通過実績があるので問題ない認識ですが、あくまで自己責任でご利用ください。
+`_displayCornerRadius` は **private API** です。実験や社内配布なら問題ありませんが、App Store 提出ではリジェクトのリスクがあります。複数のアプリで審査通過実績があるので問題ない認識ですが、あくまで自己責任でご利用ください。iOS 26 以降のみをサポートするアプリなら、上記の公開 API を使ってください。
 :::
 
 ---

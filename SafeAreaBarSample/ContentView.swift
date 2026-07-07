@@ -19,6 +19,8 @@ struct ContentView: View {
         }
       }
       .navigationTitle("下端バー比較")
+      // デバイス角丸を公開 API で計測して Screen.displayCornerRadius に格納する。
+      .background { DisplayCornerRadiusReader().ignoresSafeArea() }
     }
   }
 }
@@ -541,12 +543,10 @@ private struct BottomProgressiveBlur: View {
 /// 画面（ディスプレイ）の角丸半径。公開 API が無いため `UIScreen` の
 /// private key を KVC で読む（App Store 提出時はリジェクトのリスクに注意）。
 private enum Screen {
-  static var displayCornerRadius: CGFloat {
-    let screen = UIApplication.shared.connectedScenes
-      .compactMap { ($0 as? UIWindowScene)?.keyWindow?.screen }
-      .first
-    return (screen?.value(forKey: "_displayCornerRadius") as? CGFloat) ?? 0
-  }
+  /// 画面（ディスプレイ）の角丸半径。起動時に `DisplayCornerRadiusReader` が
+  /// 公開 API（`effectiveRadius(corner:)`, iOS 26+）で計測してここに格納する。
+  /// private API の `UIScreen._displayCornerRadius` は不要。
+  static var displayCornerRadius: CGFloat = 0
 
   /// バー（カプセル）を画面角と同心に floating させるための edgeInset。
   /// abceed のオーディオバーと同じ式: 画面角半径から capsule 半径 (= バー高さ / 2) を引く。最小 16pt。
@@ -554,6 +554,31 @@ private enum Screen {
   static let barHeight: CGFloat = 56
   static var edgeInset: CGFloat {
     max(displayCornerRadius - barHeight / 2, 16)
+  }
+}
+
+/// 公開 API だけでデバイス角丸を計測する reader（ルート画面の背景に敷く）。
+/// `containerConcentric` の cornerConfiguration を持つ全画面 view の
+/// `effectiveRadius(corner:)` は、デバイスの角丸半径と一致する（iOS 26+）。
+/// （素の UIView では 0 が返るため、cornerConfiguration の設定が必須。）
+private struct DisplayCornerRadiusReader: UIViewRepresentable {
+  func makeUIView(context: Context) -> ReaderView { ReaderView() }
+  func updateUIView(_ uiView: ReaderView, context: Context) {}
+
+  final class ReaderView: UIView {
+    override init(frame: CGRect) {
+      super.init(frame: frame)
+      isUserInteractionEnabled = false
+      cornerConfiguration = .corners(radius: .containerConcentric())
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError() }
+
+    override func layoutSubviews() {
+      super.layoutSubviews()
+      Screen.displayCornerRadius = effectiveRadius(corner: .bottomLeft)
+    }
   }
 }
 
